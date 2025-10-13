@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Chat Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <h1>🔒 Admin Login</h1>
+            <p>Enter your admin password to access the live chat dashboard</p>
+            <form id="loginForm">
+                <input type="password" id="passwordInput" placeholder="Enter admin password" required>
+                <button type="submit">Login</button>
+            </form>
+            <div id="loginError" class="error-message"></div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDashboard" class="admin-dashboard" style="display: none;">
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1>💬 Live Chat Dashboard</h1>
+                <div class="stats">
+                    <span id="totalChats" class="stat">0 Chats</span>
+                    <span id="activeChats" class="stat">0 Active</span>
+                    <span id="pendingChats" class="stat">0 Pending</span>
+                </div>
+            </div>
+            <div class="header-controls">
+                <div class="control-buttons">
+                    <button id="toggleLiveChatBtn" class="control-btn live-chat-btn" title="Toggle Live Chat">
+                        <span class="btn-icon">💬</span>
+                        <span class="btn-text">Enable Live Chat</span>
+                    </button>
+                    <button id="toggleAIChatbotBtn" class="control-btn ai-btn" title="Toggle AI Chatbot">
+                        <span class="btn-icon">🤖</span>
+                        <span class="btn-text">Enable AI Chatbot</span>
+                    </button>
+                    <button id="settingsBtn" class="control-btn settings-btn" title="Settings">
+                        <span class="btn-icon">⚙️</span>
+                        <span class="btn-text">Settings</span>
+                    </button>
+                    <button id="refreshChatsBtn" class="control-btn refresh-btn" title="Refresh Chats">
+                        <span class="btn-icon">🔄</span>
+                    </button>
+                </div>
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <div class="dashboard-content">
+            <div class="chat-list-panel">
+                <div class="panel-header">
+                    <h2>Active Chats</h2>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="pending">Pending</button>
+                        <button class="filter-btn" data-filter="active">Active</button>
+                    </div>
+                </div>
+                <div id="chatList" class="chat-list">
+                    <div class="empty-state">
+                        <div class="empty-icon">💬</div>
+                        <h3>No active chats</h3>
+                        <p>New conversations will appear here automatically</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-detail-panel">
+                <div id="noChatSelected" class="no-chat-selected">
+                    <div class="no-chat-icon">👈</div>
+                    <h3>Select a chat</h3>
+                    <p>Choose a conversation from the left to start responding to customers</p>
+                </div>
+
+                <div id="chatDetail" class="chat-detail" style="display: none;">
+                    <div class="chat-detail-header">
+                        <div class="customer-info">
+                            <div class="customer-name-container">
+                                <h3 id="customerName" class="editable-name">Customer</h3>
+                                <button id="editNameBtn" class="edit-btn" title="Edit chat name">✏️</button>
+                            </div>
+                            <span id="chatStatus" class="chat-status">Active</span>
+                        </div>
+                        <div class="chat-actions">
+                            <button id="takeChatBtn" class="action-btn take-chat">Take Chat</button>
+                            <button id="switchToAIBtn" class="action-btn switch-ai" style="display: none;">Switch to AI</button>
+                            <button id="endChatBtn" class="action-btn end-chat">End Chat</button>
+                        </div>
+                    </div>
+
+                    <div class="chat-messages-container">
+                        <div id="chatMessages" class="chat-messages">
+                        </div>
+                    </div>
+
+                    <div class="admin-input-container">
+                        <div class="input-wrapper">
+                            <textarea id="adminMessageInput" placeholder="Type your response to the customer..." rows="3"></textarea>
+                            <button id="sendAdminMessage" class="send-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill="white"/>
+                                </svg>
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="settings-modal" style="display: none;">
+        <div class="settings-content">
+            <div class="settings-header">
+                <h2>⚙️ Admin Settings</h2>
+                <button id="closeSettingsBtn" class="close-settings-btn">×</button>
+            </div>
+            
+            <div class="settings-body">
+                <div class="setting-group">
+                    <h3>👤 Display Name</h3>
+                    <p>This name will appear when you send messages to customers</p>
+                    <input type="text" id="adminNameInput" placeholder="Enter your display name" maxlength="50">
+                    <button id="saveNameBtn" class="save-btn">Save Name</button>
+                </div>
+                
+                <div class="setting-group">
+                    <h3>🎭 Chat Display</h3>
+                    <p>Control how names appear in chat messages</p>
+                    <label class="setting-toggle">
+                        <input type="checkbox" id="showChatNamesToggle">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Show chat names (customers see admin names and "AI Agent")</span>
+                    </label>
+                </div>
+
+                <div class="setting-group">
+                    <h3>💬 Chat Suggestions</h3>
+                    <p>Quick message options shown to new customers</p>
+                    <div id="suggestionsList" class="suggestions-list"></div>
+                    <div class="add-suggestion">
+                        <input type="text" id="newSuggestionInput" placeholder="Add new suggestion..." maxlength="100">
+                        <button id="addSuggestionBtn" class="add-btn">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Sound -->
+    <audio id="notificationSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIlBziS2OzNeSsFJXbH8d+QQAoUXbTq5KdVFAlFl9+wk" type="audio/wav">
+    </audio>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
