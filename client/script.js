@@ -26,7 +26,7 @@ class LiveChatWidget {
         this.hasSetupFirebase = false;
         this.displayedMessages = new Set();
         this.conversationHistory = [];
-        this.openRouterApiKey = "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"; // Replace with your actual OpenRouter API key
+        this.openRouterApiKey = "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"; // Replace with your actual OpenRouter API key
         this.aiPromptConfig = null;
         this.systemSettings = {
             liveChatEnabled: true,
