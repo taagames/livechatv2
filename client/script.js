@@ -17,6 +17,7 @@ const database = firebase.database();
 class LiveChatWidget {
     constructor() {
         this.chatId = this.getChatId();
+        this.deviceId = this.getDeviceId();
         this.isAIMode = true;
         this.isMinimized = true;
         this.isToggling = false;
@@ -24,7 +25,8 @@ class LiveChatWidget {
         this.humanTakenOver = false;
         this.hasSetupFirebase = false;
         this.displayedMessages = new Set();
-        this.openRouterApiKey = "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"; // Replace with your actual OpenRouter API key
+        this.conversationHistory = [];
+        this.openRouterApiKey = "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"; // Replace with your actual OpenRouter API key
         this.aiPromptConfig = null;
         this.systemSettings = {
             liveChatEnabled: true,
@@ -32,14 +34,38 @@ class LiveChatWidget {
         };
         
         this.initializeElements();
+        this.initializeWidget();
+        
+        console.log("Live Chat Widget initialized with chat ID:", this.chatId, "Device ID:", this.deviceId);
+    }
+
+    setupFirebase() {
+        try {
+            // Ensure Firebase is initialized
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            this.database = firebase.database();
+
+            // Optionally, you can log confirmation
+            console.log("Firebase connection ready for chat ID:", this.chatId);
+        } catch (error) {
+            console.error("Error setting up Firebase:", error);
+        }
+    }
+
+    async initializeWidget() {
+        const isBlocked = await this.checkBlockedStatus();
+        if (isBlocked) {
+            return; // Stop initialization if blocked
+        }
+        
         this.attachEventListeners();
         this.loadAIPromptConfig();
         this.loadSystemSettings();
-        this.loadChatHistory();
+        await this.loadChatHistory();
         this.listenForMessages();
         this.listenForSystemSettings();
-        
-        console.log("Live Chat Widget initialized with chat ID:", this.chatId);
     }
 
     getChatId() {
@@ -49,6 +75,115 @@ class LiveChatWidget {
             localStorage.setItem('livechat_session_id', chatId);
         }
         return chatId;
+    }
+
+    generateDeviceFingerprint() {
+        // Create a semi-persistent device identifier
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('Device fingerprint', 2, 2);
+        
+        const fingerprint = [
+            navigator.userAgent,
+            navigator.language,
+            screen.width + 'x' + screen.height,
+            new Date().getTimezoneOffset(),
+            canvas.toDataURL()
+        ].join('|');
+        
+        return btoa(fingerprint).substring(0, 32);
+    }
+
+    getDeviceId() {
+        let deviceId = localStorage.getItem('livechat_device_id');
+        if (!deviceId) {
+            deviceId = this.generateDeviceFingerprint();
+            localStorage.setItem('livechat_device_id', deviceId);
+        }
+        return deviceId;
+    }
+
+    async checkBlockedStatus() {
+        try {
+            // Get device fingerprint for persistent blocking
+            const deviceId = this.getDeviceId();
+            
+            // Check if this user/device is blocked
+            const snapshot = await database.ref('blockedUsers').once('value');
+            const blockedUsers = snapshot.val();
+            
+            if (blockedUsers) {
+                const isBlocked = Object.values(blockedUsers).some(user => 
+                    user.chatId === this.chatId || 
+                    user.userId === this.chatId ||
+                    user.deviceId === deviceId ||
+                    (user.allChatIds && user.allChatIds.includes(this.chatId))
+                );
+                
+                if (isBlocked) {
+                    this.showBlockedMessage();
+                    return true;
+                }
+            }
+
+            // Also check if the current chat is marked as blocked
+            const chatSnapshot = await database.ref(`chats/${this.chatId}/blocked`).once('value');
+            if (chatSnapshot.val() === true) {
+                this.showBlockedMessage();
+                return true;
+            }
+
+            // Check for device-level blocks
+            const deviceBlockSnapshot = await database.ref(`blockedDevices/${deviceId}`).once('value');
+            if (deviceBlockSnapshot.exists()) {
+                this.showBlockedMessage();
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            console.error('Error checking blocked status:', error);
+            return false;
+        }
+    }
+
+    showBlockedMessage() {
+        // Hide the chat widget completely
+        const chatWidget = document.getElementById('chatWidget');
+        if (chatWidget) {
+            chatWidget.style.display = 'none';
+        }
+
+        // Show blocked message
+        const blockedDiv = document.createElement('div');
+        blockedDiv.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #dc3545;
+            color: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 300px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            z-index: 1000;
+        `;
+        blockedDiv.innerHTML = `
+            <strong>Chat Access Blocked</strong><br>
+            You have been restricted from using live chat. Please contact support through other channels if you need assistance.
+        `;
+        document.body.appendChild(blockedDiv);
+
+        // Remove the blocked message after 10 seconds
+        setTimeout(() => {
+            if (blockedDiv.parentNode) {
+                blockedDiv.parentNode.removeChild(blockedDiv);
+            }
+        }, 10000);
     }
 
     initializeElements() {
@@ -108,7 +243,15 @@ class LiveChatWidget {
         if (!this.isMinimized) return; // Already open
         
         this.isMinimized = false;
-        this.chatBubble.style.display = 'none';
+        
+        // Change bubble to X button instead of hiding it
+        this.chatBubble.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="white"/>
+            </svg>
+        `;
+        this.chatBubble.style.display = 'flex';
+        this.chatBubble.classList.add('close-mode');
         this.chatWindow.classList.add('open');
         
         if (!this.hasSetupFirebase) {
@@ -127,9 +270,22 @@ class LiveChatWidget {
     closeChat() {
         if (this.isMinimized) return; // Already closed
         
-        this.isMinimized = true;
-        this.chatBubble.style.display = 'flex';
-        this.chatWindow.classList.remove('open');
+        // Add closing animation
+        this.chatWindow.classList.add('closing');
+        
+        setTimeout(() => {
+            this.isMinimized = true;
+            
+            // Change bubble back to chat icon
+            this.chatBubble.innerHTML = `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/>
+                </svg>
+            `;
+            this.chatBubble.classList.remove('close-mode');
+            this.chatBubble.style.display = 'flex';
+            this.chatWindow.classList.remove('open', 'closing');
+        }, 500); // Match animation duration
     }
 
     startNewChat() {
@@ -237,6 +393,7 @@ class LiveChatWidget {
 
         this.messageInput.value = '';
         this.addMessage(message, 'user');
+        this.conversationHistory.push({ role: 'user', content: message });
         
         // Save user message to Firebase
         await this.saveMessageToFirebase(message, 'user');
@@ -255,6 +412,7 @@ class LiveChatWidget {
                 const aiResponse = await this.getAIResponse(message);
                 this.hideTyping();
                 this.addMessage(aiResponse, 'bot');
+                this.conversationHistory.push({ role: 'assistant', content: aiResponse });
                 await this.saveMessageToFirebase(aiResponse, 'bot');
             } catch (error) {
                 this.hideTyping();
@@ -299,16 +457,92 @@ class LiveChatWidget {
 
     async loadAIPromptConfig() {
         try {
-            const response = await fetch('./ai-prompt-config.json');
-            this.aiPromptConfig = await response.json();
-        } catch (error) {
-            console.log('Could not load AI prompt config, using default');
+const response = await fetch('../ai-prompt-config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load ai-prompt-config.json: ${response.status} ${response.statusText}`);
+            }
+            const text = await response.text();
+            let configData;
+            try {
+                configData = JSON.parse(text);
+            } catch (jsonError) {
+                throw new Error("Invalid JSON format in ai-prompt-config.json");
+            }
+            
+            // Convert the business info into a comprehensive system prompt
+            const systemPrompt = `You are a friendly and helpful AI customer service assistant for The Nebula Centre, a forest school and creative learning space in Manchester.
+ABOUT THE NEBULA CENTRE:
+${configData.overview}
+
+LOCATION:
+Address: ${configData.location.address}
+Phone: ${configData.location.phone}
+Email: ${configData.location.email}
+
+FREE SUNDAY CLASSES (All completely free!):
+${configData.main_offerings.free_sunday_classes.map(c => `- ${c.name} (${c.age}): ${c.time}`).join('\n')}
+
+HOLIDAY CLUBS:
+- Mud, Mess and Mayhem (Ages 5-12)
+- Full day: ${configData.main_offerings.holiday_clubs.full_day_price}
+- Half day: ${configData.main_offerings.holiday_clubs.half_day_price}
+- Sibling discount: ${configData.main_offerings.holiday_clubs.sibling_discount}
+- Activities: ${configData.main_offerings.holiday_clubs.activities.join(', ')}
+
+BIRTHDAY PARTIES & EVENTS:
+${configData.main_offerings.birthday_parties_events.packages.map(p => `- ${p.type} Package: ${p.price} (${p.guests} guests, ${p.duration})`).join('\n')}
+- Available on: ${configData.main_offerings.birthday_parties_events.party_slots.join(' and ')}
+- Themes available: ${configData.main_offerings.birthday_parties_events.themes.slice(0, 10).join(', ')}, and more!
+- Deposit: ${configData.booking_information.deposit_required_for_parties}
+
+ALTERNATIVE PROVISION EDUCATION:
+- Forest School-based education for Key Stages 2-5
+- Days: ${configData.main_offerings.alternative_provision.days.join(', ')}
+- Time: ${configData.main_offerings.alternative_provision.time}
+
+ROOM HIRE:
+- Professional therapy rooms available for counselling, group sessions, or workshops
+
+MISSION: ${configData.mission}
+
+IMPORTANT NOTES:
+- All staff are DBS checked and first aid trained
+- Activities run in all weather conditions
+- Both indoor and outdoor areas available
+- Bookings can be made online or by contacting us
+- Advance booking recommended for holiday clubs
+- EXTREMELY IMPORTANT INFORMATION: ${configData.notes}
+ALL INFORMATION YOU GIVE TO THE USER MUST BE TRUE AND FROM THIS PROMPT ONLY.,
+Respond like a customer service representative for The Nebula Centre, no text formatting like **this** NEVER EVER USE ** IN YOUR RESPONSES.,
+Always output plain text only. Do not use any markdown symbols like **. Do not add emojis unless explicitly instructed.
+Tell the user that you can transfer them to a human if they want to speak to a human
+
+When answering questions:
+1. Be warm, friendly, and enthusiastic about outdoor learning
+2. Provide clear, concise information
+3. If someone wants to book, encourage them to call ${configData.location.phone} or email ${configData.location.email}
+4. Mention that all Sunday classes are completely FREE
+5. If you don't know something specific, suggest they contact us for more details
+6. Be helpful and encourage families to visit and experience the forest school`;
+
             this.aiPromptConfig = {
-                systemPrompt: "You are a friendly and helpful customer support AI assistant. Keep responses concise, helpful, and professional.",
+                systemPrompt: systemPrompt,
+                responseSettings: {
+                    maxTokens: 300,
+                    temperature: 0.7,
+                    model: "deepseek-ai/DeepSeek-V3.1"
+                }
+            };
+            
+            console.log('AI Prompt Config loaded successfully');
+        } catch (error) {
+            console.log('Could not load AI prompt config, using default:', error);
+            this.aiPromptConfig = {
+                systemPrompt: "ERROR PLEASE REPORT ERROR TO USER: ERROR CODE 294",
                 responseSettings: {
                     maxTokens: 200,
                     temperature: 0.7,
-                    model: "gpt-4o-mini"
+                    model: "deepseek-ai/DeepSeek-V3.1"
                 }
             };
         }
@@ -354,14 +588,14 @@ class LiveChatWidget {
         if (!this.systemSettings.aiChatbotEnabled) return;
         
         try {
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.openRouterApiKey}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: "gpt-4o-mini",
+                    model: "deepseek-ai/DeepSeek-V3.1",
                     messages: [
                         {
                             role: "system",
@@ -395,26 +629,21 @@ class LiveChatWidget {
 
     async getAIResponse(userMessage) {
         const systemPrompt = this.aiPromptConfig ? this.aiPromptConfig.systemPrompt : 
-            "You are a friendly and helpful customer support AI assistant. Keep responses concise, helpful, and professional.";
+            "ERROR PLEASE REPORT ERROR TO USER: ERROR CODE 295";
 
         const messages = [
-            {
-                role: "system",
-                content: systemPrompt
-            },
-            {
-                role: "user", 
-                content: userMessage
-            }
+            { role: "system", content: systemPrompt },
+            ...this.conversationHistory,
+            { role: "user", content: userMessage }
         ];
 
         const settings = this.aiPromptConfig ? this.aiPromptConfig.responseSettings : {
             maxTokens: 200,
             temperature: 0.7,
-            model: "gpt-4o-mini"
+            model: "deepseek-ai/DeepSeek-V3.1"
         };
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${this.openRouterApiKey}`,
@@ -452,10 +681,13 @@ class LiveChatWidget {
             }
         }
         
+        // Format text to preserve paragraphs and line breaks
+        const formattedText = this.formatText(text);
+        
         messageDiv.innerHTML = `
             <div class="message-content">
                 ${senderLabel}
-                <p>${this.escapeHtml(text)}</p>
+                ${formattedText}
                 <span class="message-time">${timestamp}</span>
             </div>
         `;
@@ -471,6 +703,17 @@ class LiveChatWidget {
                 setTimeout(() => suggestions.remove(), 300);
             }
         }
+    }
+    
+    formatText(text) {
+        // Escape HTML to prevent XSS
+        const escaped = this.escapeHtml(text);
+
+        // Split text by single or multiple newlines to ensure spacing
+        const lines = escaped.split(/\n+/);
+
+        // Wrap each line in <p> to preserve spacing in chat UI
+        return lines.map(line => `<p>${line || '&nbsp;'}</p>`).join('');
     }
 
     handleAISwitchBack() {
@@ -572,13 +815,21 @@ class LiveChatWidget {
             // Save to messages array
             await database.ref(`chats/${this.chatId}/messages`).push(messageData);
             
-            // Update chat metadata
-            await database.ref(`chats/${this.chatId}`).update({
+            // Update chat metadata with device information
+            const chatData = {
                 lastMessage: text,
                 lastMessageTime: firebase.database.ServerValue.TIMESTAMP,
                 lastMessageFrom: sender,
-                active: true
-            });
+                active: true,
+                deviceId: this.deviceId,
+                userAgent: navigator.userAgent,
+                screenResolution: screen.width + 'x' + screen.height,
+                language: navigator.language,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                createdAt: firebase.database.ServerValue.TIMESTAMP
+            };
+            
+            await database.ref(`chats/${this.chatId}`).update(chatData);
         } catch (error) {
             console.error('Error saving message to Firebase:', error);
         }
@@ -593,20 +844,45 @@ class LiveChatWidget {
                 // Clear existing messages except the welcome message
                 const welcomeMessage = this.messagesContainer.querySelector('.message');
                 this.messagesContainer.innerHTML = '';
-                this.messagesContainer.appendChild(welcomeMessage);
+                if (welcomeMessage) {
+                    this.messagesContainer.appendChild(welcomeMessage);
+                }
                 
-                // Add historical messages
-                Object.values(messages).forEach(msg => {
-                    this.addMessage(msg.text, msg.from);
+                // Initialize displayed messages set to track loaded messages
+                this.displayedMessages = new Set();
+                this.conversationHistory = [];
+                
+                // Sort messages by timestamp and add them
+                const sortedMessages = Object.entries(messages)
+                    .sort(([,a], [,b]) => (a.timestamp || 0) - (b.timestamp || 0));
+                
+                sortedMessages.forEach(([key, msg]) => {
+                    this.addMessage(msg.text, msg.from, msg.adminName);
+                    this.displayedMessages.add(key);
+                    if (msg.from === 'user' || msg.from === 'bot') {
+                        this.conversationHistory.push({
+                            role: msg.from === 'user' ? 'user' : 'assistant',
+                            content: msg.text
+                        });
+                    }
                 });
 
                 // Check if human support was requested
                 const chatSnapshot = await database.ref(`chats/${this.chatId}`).once('value');
                 const chatData = chatSnapshot.val();
-                if (chatData && chatData.needsHuman) {
-                    this.isAIMode = false;
-                    this.statusIndicator.textContent = 'Human agent';
-                    this.statusIndicator.className = 'status-indicator human-mode';
+                if (chatData) {
+                    if (chatData.needsHuman) {
+                        this.isAIMode = false;
+                        this.statusIndicator.textContent = 'Waiting for human agent...';
+                        this.statusIndicator.className = 'status-indicator waiting-mode';
+                    } else if (chatData.humanAgentTaken) {
+                        this.isAIMode = false;
+                        this.humanTakenOver = true;
+                        this.statusIndicator.textContent = 'Human Agent';
+                        this.statusIndicator.className = 'status-indicator human-mode';
+                    } else if (!chatData.active) {
+                        this.chatEnded = true;
+                    }
                 }
             }
         } catch (error) {
