@@ -35,6 +35,8 @@ class LiveChatWidget {
         
         this.initializeElements();
         this.initializeWidget();
+        this.loadTheme();
+        this.listenForThemeChanges();
         
         console.log("Live Chat Widget initialized with chat ID:", this.chatId, "Device ID:", this.deviceId);
     }
@@ -978,6 +980,37 @@ When answering questions:
             this.messageInput = document.getElementById('messageInput');
             this.sendButton = document.getElementById('sendButton');
             this.attachEventListeners();
+        });
+    }
+
+    // Theme Management Methods
+    async loadTheme() {
+        try {
+            const snapshot = await database.ref('themeSettings').once('value');
+            const themeData = snapshot.val();
+            
+            if (themeData) {
+                this.applyTheme(themeData);
+            }
+        } catch (error) {
+            console.error('Error loading theme:', error);
+        }
+    }
+
+    applyTheme(themeData) {
+        const root = document.documentElement;
+        root.style.setProperty('--theme-primary', themeData.primaryColor);
+        root.style.setProperty('--theme-secondary', themeData.secondaryColor);
+        root.style.setProperty('--theme-gradient', themeData.gradient);
+        root.style.setProperty('--theme-font', themeData.fontFamily);
+    }
+
+    listenForThemeChanges() {
+        database.ref('themeSettings').on('value', (snapshot) => {
+            const themeData = snapshot.val();
+            if (themeData) {
+                this.applyTheme(themeData);
+            }
         });
     }
 }

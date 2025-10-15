@@ -155,6 +155,59 @@
                         <button id="addSuggestionBtn" class="add-btn">Add</button>
                     </div>
                 </div>
+
+                <div class="setting-group">
+                    <h3>🎨 Theme Customization</h3>
+                    <p>Customize the color theme and font for both admin and client chat interfaces</p>
+                    
+                    <div class="theme-section">
+                        <label class="theme-label">Primary Color</label>
+                        <div class="color-picker-wrapper">
+                            <input type="color" id="primaryColorPicker" value="#007bff">
+                            <input type="text" id="primaryColorInput" value="#007bff" placeholder="#007bff" maxlength="7">
+                        </div>
+                    </div>
+
+                    <div class="theme-section">
+                        <label class="theme-label">Secondary Color (for gradients)</label>
+                        <div class="color-picker-wrapper">
+                            <input type="color" id="secondaryColorPicker" value="#0056b3">
+                            <input type="text" id="secondaryColorInput" value="#0056b3" placeholder="#0056b3" maxlength="7">
+                        </div>
+                    </div>
+
+                    <div class="theme-section">
+                        <label class="theme-label">
+                            <input type="checkbox" id="useGradientToggle" checked>
+                            Use Gradient Theme
+                        </label>
+                    </div>
+
+                    <div class="theme-section">
+                        <label class="theme-label">Font Family</label>
+                        <select id="fontFamilySelect">
+                            <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">Default (System)</option>
+                            <option value="'Arial', sans-serif">Arial</option>
+                            <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
+                            <option value="'Georgia', serif">Georgia</option>
+                            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                            <option value="'Courier New', Courier, monospace">Courier New</option>
+                            <option value="'Verdana', sans-serif">Verdana</option>
+                            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                            <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+                            <option value="'Impact', sans-serif">Impact</option>
+                        </select>
+                    </div>
+
+                    <div class="theme-preview">
+                        <h4>Preview</h4>
+                        <div class="preview-bubble" id="previewBubble">Chat Bubble</div>
+                        <div class="preview-message" id="previewMessage">Message Preview</div>
+                    </div>
+
+                    <button id="saveThemeBtn" class="save-btn">Save Theme</button>
+                    <button id="resetThemeBtn" class="reset-btn">Reset to Default</button>
+                </div>
             </div>
         </div>
     </div>

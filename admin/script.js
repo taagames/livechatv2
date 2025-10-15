@@ -92,6 +92,18 @@ class AdminDashboard {
         this.addSuggestionBtn = document.getElementById('addSuggestionBtn');
         this.showChatNamesToggle = document.getElementById('showChatNamesToggle');
 
+        // Theme customization elements
+        this.primaryColorPicker = document.getElementById('primaryColorPicker');
+        this.primaryColorInput = document.getElementById('primaryColorInput');
+        this.secondaryColorPicker = document.getElementById('secondaryColorPicker');
+        this.secondaryColorInput = document.getElementById('secondaryColorInput');
+        this.useGradientToggle = document.getElementById('useGradientToggle');
+        this.fontFamilySelect = document.getElementById('fontFamilySelect');
+        this.saveThemeBtn = document.getElementById('saveThemeBtn');
+        this.resetThemeBtn = document.getElementById('resetThemeBtn');
+        this.previewBubble = document.getElementById('previewBubble');
+        this.previewMessage = document.getElementById('previewMessage');
+
         // Notification sound
         this.notificationSound = document.getElementById('notificationSound');
     }
@@ -151,6 +163,18 @@ class AdminDashboard {
             if (e.key === 'Enter') this.addSuggestion();
         });
         this.showChatNamesToggle.addEventListener('change', () => this.updateShowChatNames());
+
+        // Theme customization
+        this.primaryColorPicker.addEventListener('input', (e) => this.syncColorInput(e.target, this.primaryColorInput));
+        this.primaryColorInput.addEventListener('input', (e) => this.syncColorPicker(e.target, this.primaryColorPicker));
+        this.secondaryColorPicker.addEventListener('input', (e) => this.syncColorInput(e.target, this.secondaryColorInput));
+        this.secondaryColorInput.addEventListener('input', (e) => this.syncColorPicker(e.target, this.secondaryColorPicker));
+        this.useGradientToggle.addEventListener('change', () => this.updateThemePreview());
+        this.fontFamilySelect.addEventListener('change', () => this.updateThemePreview());
+        this.primaryColorPicker.addEventListener('input', () => this.updateThemePreview());
+        this.secondaryColorPicker.addEventListener('input', () => this.updateThemePreview());
+        this.saveThemeBtn.addEventListener('click', () => this.saveTheme());
+        this.resetThemeBtn.addEventListener('click', () => this.resetTheme());
     }
 
     checkLoginStatus() {
@@ -178,6 +202,8 @@ class AdminDashboard {
         this.loginScreen.style.display = 'none';
         this.adminDashboard.style.display = 'flex';
         this.loadSystemSettings();
+        this.loadTheme();
+        this.listenForThemeChanges();
         this.startListening();
         console.log('Admin logged in successfully');
     }
@@ -1218,6 +1244,137 @@ class AdminDashboard {
         } catch (error) {
             console.error('Error unblocking user:', error);
             alert('Error unblocking user: ' + error.message);
+        }
+    }
+
+    // Theme Customization Methods
+    syncColorInput(picker, input) {
+        input.value = picker.value;
+        this.updateThemePreview();
+    }
+
+    syncColorPicker(input, picker) {
+        const color = input.value;
+        if (/^#[0-9A-F]{6}$/i.test(color)) {
+            picker.value = color;
+            this.updateThemePreview();
+        }
+    }
+
+    updateThemePreview() {
+        const primaryColor = this.primaryColorPicker.value;
+        const secondaryColor = this.secondaryColorPicker.value;
+        const useGradient = this.useGradientToggle.checked;
+        const fontFamily = this.fontFamilySelect.value;
+
+        const gradient = useGradient
+            ? `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
+            : primaryColor;
+
+        this.previewBubble.style.background = gradient;
+        this.previewBubble.style.fontFamily = fontFamily;
+        this.previewMessage.style.background = gradient;
+        this.previewMessage.style.fontFamily = fontFamily;
+    }
+
+    async saveTheme() {
+        try {
+            const primaryColor = this.primaryColorPicker.value;
+            const secondaryColor = this.secondaryColorPicker.value;
+            const useGradient = this.useGradientToggle.checked;
+            const fontFamily = this.fontFamilySelect.value;
+
+            const themeData = {
+                primaryColor,
+                secondaryColor,
+                useGradient,
+                fontFamily,
+                gradient: useGradient
+                    ? `linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%)`
+                    : primaryColor,
+                updatedAt: Date.now()
+            };
+
+            await database.ref('themeSettings').set(themeData);
+            this.applyTheme(themeData);
+            alert('Theme saved successfully! Changes will apply to both admin and client interfaces.');
+        } catch (error) {
+            console.error('Error saving theme:', error);
+            alert('Error saving theme: ' + error.message);
+        }
+    }
+
+    async loadTheme() {
+        try {
+            const snapshot = await database.ref('themeSettings').once('value');
+            const themeData = snapshot.val();
+            
+            if (themeData) {
+                // Update UI controls
+                this.primaryColorPicker.value = themeData.primaryColor || '#007bff';
+                this.primaryColorInput.value = themeData.primaryColor || '#007bff';
+                this.secondaryColorPicker.value = themeData.secondaryColor || '#0056b3';
+                this.secondaryColorInput.value = themeData.secondaryColor || '#0056b3';
+                this.useGradientToggle.checked = themeData.useGradient !== false;
+                this.fontFamilySelect.value = themeData.fontFamily || "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+                
+                this.applyTheme(themeData);
+                this.updateThemePreview();
+            }
+        } catch (error) {
+            console.error('Error loading theme:', error);
+        }
+    }
+
+    applyTheme(themeData) {
+        const root = document.documentElement;
+        root.style.setProperty('--theme-primary', themeData.primaryColor);
+        root.style.setProperty('--theme-secondary', themeData.secondaryColor);
+        root.style.setProperty('--theme-gradient', themeData.gradient);
+        root.style.setProperty('--theme-font', themeData.fontFamily);
+    }
+
+    listenForThemeChanges() {
+        database.ref('themeSettings').on('value', (snapshot) => {
+            const themeData = snapshot.val();
+            if (themeData) {
+                this.applyTheme(themeData);
+            }
+        });
+    }
+
+    async resetTheme() {
+        if (!confirm('Are you sure you want to reset the theme to default?')) {
+            return;
+        }
+
+        try {
+            const defaultTheme = {
+                primaryColor: '#007bff',
+                secondaryColor: '#0056b3',
+                useGradient: true,
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                gradient: 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)',
+                updatedAt: Date.now()
+            };
+
+            await database.ref('themeSettings').set(defaultTheme);
+            
+            // Update UI controls
+            this.primaryColorPicker.value = defaultTheme.primaryColor;
+            this.primaryColorInput.value = defaultTheme.primaryColor;
+            this.secondaryColorPicker.value = defaultTheme.secondaryColor;
+            this.secondaryColorInput.value = defaultTheme.secondaryColor;
+            this.useGradientToggle.checked = defaultTheme.useGradient;
+            this.fontFamilySelect.value = defaultTheme.fontFamily;
+            
+            this.applyTheme(defaultTheme);
+            this.updateThemePreview();
+            
+            alert('Theme reset to default successfully!');
+        } catch (error) {
+            console.error('Error resetting theme:', error);
+            alert('Error resetting theme: ' + error.message);
         }
     }
 }
