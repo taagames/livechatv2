@@ -26,7 +26,7 @@ class LiveChatWidget {
         this.hasSetupFirebase = false;
         this.displayedMessages = new Set();
         this.conversationHistory = [];
-        this.openRouterApiKey = "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"; // Replace with your actual OpenRouter API key
+        // API key is now securely stored in Cloudflare Pages environment variables
         this.aiPromptConfig = null;
         this.systemSettings = {
             liveChatEnabled: true,
@@ -588,10 +588,9 @@ When answering questions:
         if (!this.systemSettings.aiChatbotEnabled) return;
         
         try {
-            const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+            const response = await fetch('/ai', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${this.openRouterApiKey}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -643,10 +642,9 @@ When answering questions:
             model: "deepseek-ai/DeepSeek-V3.1"
         };
 
-        const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+        const response = await fetch('/ai', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${this.openRouterApiKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({

@@ -258,16 +258,19 @@ class AdminDashboard {
     }
 
     refreshChats() {
-        this.refreshChatsBtn.style.animation = 'spin 0.5s ease-in-out';
-        setTimeout(() => {
-            this.refreshChatsBtn.style.animation = '';
-        }, 500);
-        
-        // Force refresh from database
-        database.ref('chats').once('value', (snapshot) => {
-            this.chats = snapshot.val() || {};
-            this.updateChatList();
-            this.updateStats();
+        return new Promise((resolve) => {
+            this.refreshChatsBtn.style.animation = 'spin 0.5s ease-in-out';
+            setTimeout(() => {
+                this.refreshChatsBtn.style.animation = '';
+            }, 500);
+            
+            // Force refresh from database
+            database.ref('chats').once('value', (snapshot) => {
+                this.chats = snapshot.val() || {};
+                this.updateChatList();
+                this.updateStats();
+                resolve();
+            });
         });
     }
 
@@ -1216,11 +1219,6 @@ class AdminDashboard {
             console.error('Error unblocking user:', error);
             alert('Error unblocking user: ' + error.message);
         }
-    }
-
-    async refreshChats() {
-        // Reload the chat list to reflect any changes
-        await this.loadChats();
     }
 }
 
